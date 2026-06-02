@@ -43,126 +43,130 @@ export default function AppLayout() {
     setMobileOpen(false);
   }
 
-  const sidebar = (
-    <aside
-      className={cn(
-        'flex flex-col h-full border-r',
-        'transition-colors duration-200',
-      )}
-      style={{
-        background: 'var(--bg-surface)',
-        borderColor: 'var(--border)',
-        width: '100%',
-      }}
-    >
-      {/* Logo */}
-      <div
-        className="flex items-center gap-3"
-        style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}
-      >
-        <div
-          className="flex items-center justify-center rounded-lg animate-pulse-subtle"
-          style={{
-            width: 40,
-            height: 40,
-            background: 'var(--accent)',
-          }}
-        >
-          <Zap size={22} color="#fff" strokeWidth={2.5} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div
-            className="font-bold leading-none"
-            style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.1rem',
-              color: 'var(--text-primary)',
-              letterSpacing: '0.02em',
-            }}
-          >
-            SKORLIVE
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Sistem Skor Olahraga
-          </div>
-        </div>
-        {/* Close Button on Mobile Drawer */}
-        <button
-          className="md:hidden btn btn-ghost"
-          style={{ padding: '0.375rem', minHeight: 'auto', color: 'var(--text-muted)' }}
-          onClick={() => setMobileOpen(false)}
-          aria-label="Tutup menu"
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* Quick action */}
-      <div style={{ padding: '1rem 1rem 0.5rem' }}>
-        <button
-          className="btn btn-primary w-full"
-          id="new-match-btn"
-          onClick={() => handleNav('/matches/new')}
-          style={{ justifyContent: 'flex-start', gap: '0.5rem' }}
-        >
-          <Plus size={16} />
-          Pertandingan Baru
-        </button>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 flex flex-col gap-1" style={{ padding: '0.75rem 1rem' }} role="navigation" aria-label="Menu utama">
-        {navItems.map((item) => {
-          const isActive =
-            item.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(item.path);
-          return (
-            <button
-              key={item.path}
-              className={cn('nav-item', isActive && 'active')}
-              id={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
-              onClick={() => handleNav(item.path)}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div
-        className="flex items-center justify-between"
+  function renderSidebar(isMobile: boolean) {
+    return (
+      <aside
+        className={cn(
+          'flex flex-col h-full border-r',
+          'transition-colors duration-200',
+        )}
         style={{
-          padding: '1rem',
-          fontSize: '0.75rem',
-          borderTop: '1px solid var(--border)',
-          color: 'var(--text-muted)',
+          background: 'var(--bg-surface)',
+          borderColor: 'var(--border)',
+          width: '100%',
         }}
       >
-        <span>v1.0.0 · {isMinimal ? 'Minimal Sport' : 'SkorLive'}</span>
-        <a
-          href="https://github.com/faizabdillahh/skorlive"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 hover:text-[var(--accent)] transition-colors"
-          title="GitHub Repository"
-          style={{ color: 'inherit', textDecoration: 'none' }}
+        {/* Logo */}
+        <div
+          className="flex items-center gap-3"
+          style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}
         >
-          <Github size={13} />
-          GitHub
-        </a>
-      </div>
-    </aside>
-  );
+          <div
+            className="flex items-center justify-center rounded-lg animate-pulse-subtle"
+            style={{
+              width: 40,
+              height: 40,
+              background: 'var(--accent)',
+            }}
+          >
+            <Zap size={22} color="#fff" strokeWidth={2.5} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div
+              className="font-bold leading-none"
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: '1.1rem',
+                color: 'var(--text-primary)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              SKORLIVE
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+              Sistem Skor Olahraga
+            </div>
+          </div>
+          {/* Close Button - Rendered only on mobile drawer */}
+          {isMobile && (
+            <button
+              className="btn btn-ghost"
+              style={{ padding: '0.375rem', minHeight: 'auto', color: 'var(--text-muted)' }}
+              onClick={() => setMobileOpen(false)}
+              aria-label="Tutup menu"
+            >
+              <X size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* Quick action */}
+        <div style={{ padding: '1rem 1rem 0.5rem' }}>
+          <button
+            className="btn btn-primary w-full"
+            id="new-match-btn"
+            onClick={() => handleNav('/matches/new')}
+            style={{ justifyContent: 'flex-start', gap: '0.5rem' }}
+          >
+            <Plus size={16} />
+            Pertandingan Baru
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 flex flex-col gap-1" style={{ padding: '0.75rem 1rem' }} role="navigation" aria-label="Menu utama">
+          {navItems.map((item) => {
+            const isActive =
+              item.path === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.path);
+            return (
+              <button
+                key={item.path}
+                className={cn('nav-item', isActive && 'active')}
+                id={`nav-${item.label.toLowerCase().replace(/\s/g, '-')}`}
+                onClick={() => handleNav(item.path)}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '1rem',
+            fontSize: '0.75rem',
+            borderTop: '1px solid var(--border)',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span>v1.0.0 · {isMinimal ? 'Minimal Sport' : 'SkorLive'}</span>
+          <a
+            href="https://github.com/faizabdillahh/skorlive"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 hover:text-[var(--accent)] transition-colors"
+            title="GitHub Repository"
+            style={{ color: 'inherit', textDecoration: 'none' }}
+          >
+            <Github size={13} />
+            GitHub
+          </a>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <div className="layout-app" style={{ minHeight: '100dvh' }}>
       {/* Desktop sidebar */}
       <div className="hidden md:flex md:flex-col" style={{ gridRow: '1 / -1', width: 260 }}>
-        {sidebar}
+        {renderSidebar(false)}
       </div>
 
       {/* Mobile: topbar + drawer */}
@@ -230,7 +234,7 @@ export default function AppLayout() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {sidebar}
+          {renderSidebar(true)}
         </div>
       </div>
 
