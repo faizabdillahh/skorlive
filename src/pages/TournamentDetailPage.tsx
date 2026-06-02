@@ -1,5 +1,6 @@
 // pages/TournamentDetailPage.tsx — Detail & manajemen turnamen
 
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Trophy, Download, Play, CheckCircle } from 'lucide-react';
 import { useAppStore, calculateStandings } from '@/stores/app-store';
@@ -16,6 +17,10 @@ export default function TournamentDetailPage() {
     s.tournaments.find((t) => t.id === tournamentId) ?? null,
   );
   const { startMatch, exportTournamentToJSON, finishTournament, setUi } = useAppStore();
+
+  const [viewMode, setViewMode] = useState<'schedule' | 'bracket'>(
+    tournament?.format === 'single_elimination' ? 'bracket' : 'schedule'
+  );
 
   if (!tournament) {
     return (
@@ -52,6 +57,28 @@ export default function TournamentDetailPage() {
       },
     });
   }
+
+  // Helper for single elimination round label
+  function getSingleEliminationRoundLabel(roundNum: number, totalRoundsCount: number): string {
+    const diff = totalRoundsCount - roundNum;
+    if (diff === 0) return 'FINAL';
+    if (diff === 1) return 'SEMI FINAL';
+    if (diff === 2) return 'PEREMPAT FINAL';
+    return `BABAK ${roundNum}`;
+  }
+
+  // Group matches by round for bracket view
+  const matchesByRound: Record<number, typeof tournament.matches> = {};
+  tournament.matches.forEach((m) => {
+    if (!matchesByRound[m.round!]) {
+      matchesByRound[m.round!] = [];
+    }
+    matchesByRound[m.round!].push(m);
+  });
+  const rounds = Object.keys(matchesByRound)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const totalRounds = rounds.length;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -241,95 +268,321 @@ export default function TournamentDetailPage() {
 
       {/* Matches */}
       <div className="card">
-        <div className="label mb-3">JADWAL PERTANDINGAN</div>
-        <div className="flex flex-col gap-3">
-          {tournament.matches.map((match) => {
-            const isLive = match.status === 'live' || match.status === 'paused';
-            return (
-              <div
-                key={match.id}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+          <div className="label" style={{ margin: 0 }}>JADWAL PERTANDINGAN</div>
+          {tournament.format === 'single_elimination' && (
+            <div className="flex rounded-lg p-0.5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', minWidth: 240 }}>
+              <button
+                className="flex-1 text-center py-1.5 px-3 rounded-md transition-all font-semibold"
                 style={{
-                  padding: '0.875rem 1rem',
-                  background: 'var(--bg-elevated)',
-                  borderRadius: 'var(--radius-md)',
-                  border: isLive ? '1px solid var(--danger)' : '1px solid var(--border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  flexWrap: 'wrap',
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-heading)',
+                  letterSpacing: '0.03em',
+                  background: viewMode === 'bracket' ? 'var(--bg-surface)' : 'transparent',
+                  color: viewMode === 'bracket' ? 'var(--accent)' : 'var(--text-secondary)',
+                  border: 'none',
+                  cursor: 'pointer',
                 }}
+                onClick={() => setViewMode('bracket')}
               >
-                {/* Round info */}
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: 20 }}>
-                  R{match.round ?? 1}
-                </span>
+                Bagan Turnamen
+              </button>
+              <button
+                className="flex-1 text-center py-1.5 px-3 rounded-md transition-all font-semibold"
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-heading)',
+                  letterSpacing: '0.03em',
+                  background: viewMode === 'schedule' ? 'var(--bg-surface)' : 'transparent',
+                  color: viewMode === 'schedule' ? 'var(--accent)' : 'var(--text-secondary)',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setViewMode('schedule')}
+              >
+                Daftar Jadwal
+              </button>
+            </div>
+          )}
+        </div>
 
-                 {/* Teams + score */}
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                  <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span className="hidden sm:inline">{match.teamHome.name}</span>
-                      <span className="sm:hidden">{match.teamHome.shortName}</span>
-                    </span>
-                    <TeamAvatar team={match.teamHome} size={28} />
-                  </div>
-
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
+        {viewMode === 'bracket' && tournament.format === 'single_elimination' ? (
+          <div 
+            style={{ 
+              display: 'flex', 
+              gap: '2rem', 
+              overflowX: 'auto', 
+              padding: '1rem 0.25rem',
+              scrollBehavior: 'smooth',
+            }}
+          >
+            {rounds.map((roundNum) => {
+              const roundMatches = matchesByRound[roundNum] || [];
+              const roundLabel = getSingleEliminationRoundLabel(roundNum, totalRounds);
+              
+              return (
+                <div 
+                  key={roundNum} 
+                  style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    minWidth: 260, 
+                    flexShrink: 0,
+                  }}
+                >
+                  <div 
+                    style={{ 
+                      textAlign: 'center', 
+                      fontFamily: 'var(--font-heading)', 
+                      fontSize: '0.8rem', 
+                      color: 'var(--text-muted)',
+                      letterSpacing: '0.1em',
                       fontWeight: 700,
-                      fontSize: '1rem',
-                      color: 'var(--text-primary)',
-                      whiteSpace: 'nowrap',
+                      marginBottom: '1.5rem',
+                      borderBottom: '2px dashed var(--border)',
+                      paddingBottom: 8,
                     }}
                   >
-                    {match.status === 'scheduled' ? '—' : `${match.totalScoreHome} : ${match.totalScoreAway}`}
-                  </span>
+                    {roundLabel}
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', flex: 1, justifyContent: 'space-around' }}>
+                    {roundMatches.map((match) => {
+                      const isLive = match.status === 'live' || match.status === 'paused';
+                      const isFinished = match.status === 'finished';
+                      const isBye = match.teamHome.id === 'team-bye' || match.teamAway.id === 'team-bye';
+                      
+                      return (
+                        <div 
+                          key={match.id}
+                          style={{
+                            background: 'var(--bg-base)',
+                            border: isLive ? '2px solid var(--danger)' : '1px solid var(--border)',
+                            borderRadius: 'var(--radius-lg)',
+                            overflow: 'hidden',
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                            position: 'relative',
+                          }}
+                        >
+                          {/* Match Header Tag */}
+                          <div className="flex items-center justify-between px-3 py-1.5" style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', fontSize: '0.7rem' }}>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>MATCH {match.matchNumber}</span>
+                            {isLive && <span style={{ color: 'var(--danger)', fontWeight: 700 }}>LIVE</span>}
+                            {isFinished && <span style={{ color: 'var(--success)', fontWeight: 700 }}>SELESAI</span>}
+                            
+                            {!isBye && match.status === 'scheduled' && (
+                              <button 
+                                style={{ 
+                                  background: 'var(--accent)', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: 4, 
+                                  padding: '2px 8px',
+                                  cursor: 'pointer',
+                                  fontWeight: 700,
+                                  fontSize: '0.65rem'
+                                }}
+                                onClick={() => handleStartMatch(match.id)}
+                              >
+                                MULAI
+                              </button>
+                            )}
+                            {!isBye && isLive && (
+                              <button 
+                                style={{ 
+                                  background: 'var(--danger)', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: 4, 
+                                  padding: '2px 8px',
+                                  cursor: 'pointer',
+                                  fontWeight: 700,
+                                  fontSize: '0.65rem'
+                                }}
+                                onClick={() => navigate(`/matches/${match.id}/live`)}
+                              >
+                                LIVE →
+                              </button>
+                            )}
+                            {!isBye && isFinished && (
+                              <button 
+                                style={{ 
+                                  background: 'var(--bg-elevated)', 
+                                  color: 'var(--text-primary)', 
+                                  border: '1px solid var(--border)', 
+                                  borderRadius: 4, 
+                                  padding: '2px 8px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  fontSize: '0.65rem'
+                                }}
+                                onClick={() => navigate(`/matches/${match.id}`)}
+                              >
+                                DETAIL
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Home Row */}
+                          <div 
+                            className="flex items-center justify-between px-3 py-2.5"
+                            style={{ 
+                              background: isFinished && match.winner === 'home' ? 'var(--accent-muted)' : undefined,
+                              borderBottom: '1px solid var(--border)'
+                            }}
+                          >
+                            <div className="flex items-center gap-2 min-width-0" style={{ flex: 1 }}>
+                              <TeamAvatar team={match.teamHome} size={22} />
+                              <span 
+                                style={{ 
+                                  fontSize: '0.75rem', 
+                                  fontWeight: isFinished && match.winner === 'home' ? 700 : 500,
+                                  color: isFinished && match.winner === 'away' ? 'var(--text-muted)' : 'var(--text-primary)',
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis', 
+                                  whiteSpace: 'nowrap' 
+                                }}
+                              >
+                                {match.teamHome.name}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: isFinished && match.winner === 'home' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                              {isBye ? (match.teamHome.id === 'team-bye' ? '—' : 'W.O.') : (match.status === 'scheduled' ? '—' : match.totalScoreHome)}
+                            </span>
+                          </div>
 
-                  <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0 }}>
-                    <TeamAvatar team={match.teamAway} size={28} />
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span className="hidden sm:inline">{match.teamAway.name}</span>
-                      <span className="sm:hidden">{match.teamAway.shortName}</span>
-                    </span>
+                          {/* Away Row */}
+                          <div 
+                            className="flex items-center justify-between px-3 py-2.5"
+                            style={{ 
+                              background: isFinished && match.winner === 'away' ? 'var(--accent-muted)' : undefined
+                            }}
+                          >
+                            <div className="flex items-center gap-2 min-width-0" style={{ flex: 1 }}>
+                              <TeamAvatar team={match.teamAway} size={22} />
+                              <span 
+                                style={{ 
+                                  fontSize: '0.75rem', 
+                                  fontWeight: isFinished && match.winner === 'away' ? 700 : 500,
+                                  color: isFinished && match.winner === 'home' ? 'var(--text-muted)' : 'var(--text-primary)',
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis', 
+                                  whiteSpace: 'nowrap' 
+                                }}
+                              >
+                                {match.teamAway.name}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: isFinished && match.winner === 'away' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                              {isBye ? (match.teamAway.id === 'team-bye' ? '—' : 'W.O.') : (match.status === 'scheduled' ? '—' : match.totalScoreAway)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {tournament.matches.map((match) => {
+              const isLive = match.status === 'live' || match.status === 'paused';
+              return (
+                <div
+                  key={match.id}
+                  style={{
+                    padding: '0.875rem 1rem',
+                    background: 'var(--bg-elevated)',
+                    borderRadius: 'var(--radius-md)',
+                    border: isLive ? '1px solid var(--danger)' : '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {/* Round info */}
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: 20 }}>
+                    R{match.round ?? 1}
+                  </span>
 
-                {/* Status & action */}
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={match.status} />
-                  {match.status === 'scheduled' && (
-                    <button
-                      className="btn btn-primary"
-                      style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem' }}
-                      onClick={() => handleStartMatch(match.id)}
+                  {/* Teams + score */}
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                    <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span className="hidden sm:inline">{match.teamHome.name}</span>
+                        <span className="sm:hidden">{match.teamHome.shortName}</span>
+                      </span>
+                      <TeamAvatar team={match.teamHome} size={28} />
+                    </div>
+
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        color: 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
-                      <Play size={12} /> Mulai
-                    </button>
-                  )}
-                  {isLive && (
-                    <button
-                      className="btn btn-ghost"
-                      style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem', color: 'var(--danger)' }}
-                      onClick={() => navigate(`/matches/${match.id}/live`)}
-                    >
-                      Live →
-                    </button>
-                  )}
-                  {match.status === 'finished' && (
-                    <button
-                      className="btn btn-ghost"
-                      style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem' }}
-                      onClick={() => navigate(`/matches/${match.id}`)}
-                    >
-                      Detail →
-                    </button>
-                  )}
+                      {match.teamHome.id === 'team-bye' || match.teamAway.id === 'team-bye'
+                        ? 'W.O.'
+                        : match.status === 'scheduled'
+                        ? '—'
+                        : `${match.totalScoreHome} : ${match.totalScoreAway}`}
+                    </span>
+
+                    <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0 }}>
+                      <TeamAvatar team={match.teamAway} size={28} />
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span className="hidden sm:inline">{match.teamAway.name}</span>
+                        <span className="sm:hidden">{match.teamAway.shortName}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Status & action */}
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={match.status} />
+                    {match.teamHome.id !== 'team-bye' && match.teamAway.id !== 'team-bye' && (
+                      <>
+                        {match.status === 'scheduled' && (
+                          <button
+                            className="btn btn-primary"
+                            style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem' }}
+                            onClick={() => handleStartMatch(match.id)}
+                          >
+                            <Play size={12} /> Mulai
+                          </button>
+                        )}
+                        {isLive && (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem', color: 'var(--danger)' }}
+                            onClick={() => navigate(`/matches/${match.id}/live`)}
+                          >
+                            Live →
+                          </button>
+                        )}
+                        {match.status === 'finished' && (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ minHeight: 32, fontSize: '0.75rem', padding: '0.25rem 0.625rem' }}
+                            onClick={() => navigate(`/matches/${match.id}`)}
+                          >
+                            Detail →
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

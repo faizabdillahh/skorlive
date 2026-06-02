@@ -159,6 +159,25 @@ export function calculateStandings(tournament: Tournament): TeamStanding[] {
     .forEach((match) => {
       const home = standings.get(match.teamHome.id);
       const away = standings.get(match.teamAway.id);
+
+      // Award points for byes
+      if (match.teamHome.id === 'team-bye') {
+        if (away) {
+          away.played++;
+          away.won++;
+          away.points += 3;
+        }
+        return;
+      }
+      if (match.teamAway.id === 'team-bye') {
+        if (home) {
+          home.played++;
+          home.won++;
+          home.points += 3;
+        }
+        return;
+      }
+
       if (!home || !away) return;
 
       home.played++;
@@ -191,7 +210,7 @@ export function calculateStandings(tournament: Tournament): TeamStanding[] {
   );
 }
 
-// ─── Round-robin schedule generator ─────────────────────────────
+// ─── Round-robin schedule generator (Berger Table / Circle Method) ───
 
 function generateRoundRobinMatches(
   tournamentId: string,
@@ -200,21 +219,65 @@ function generateRoundRobinMatches(
 ): Match[] {
   const matches: Match[] = [];
   const now = nowISO();
+  const list = [...teams];
+  
+  const isOdd = list.length % 2 !== 0;
+  const byeTeam: Team = {
+    id: 'team-bye',
+    name: 'BYE',
+    shortName: 'BYE',
+    colorPrimary: '#4a5568',
+    colorSecondary: '#718096',
+    createdAt: now,
+  };
+  
+  if (isOdd) {
+    list.push(byeTeam);
+  }
+
+  const numTeams = list.length;
+  const numRounds = numTeams - 1;
+  const matchesPerRound = numTeams / 2;
   let matchNumber = 1;
 
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      const homeTeam = teams[i]!;
-      const awayTeam = teams[j]!;
+  for (let round = 0; round < numRounds; round++) {
+    for (let matchIdx = 0; matchIdx < matchesPerRound; matchIdx++) {
+      const homeIdx = (round + matchIdx) % (numTeams - 1);
+      let awayIdx = (round - matchIdx + numTeams - 1) % (numTeams - 1);
+
+      if (matchIdx === 0) {
+        awayIdx = numTeams - 1;
+      }
+
+      const homeTeam = list[homeIdx]!;
+      const awayTeam = list[awayIdx]!;
+
+      if (homeTeam.id === 'team-bye' && awayTeam.id === 'team-bye') continue;
+
+      const actualHome = (round % 2 === 0 && matchIdx === 0) ? awayTeam : homeTeam;
+      const actualAway = (round % 2 === 0 && matchIdx === 0) ? homeTeam : awayTeam;
+
+      let status: MatchStatus = 'scheduled';
+      let winner: 'home' | 'away' | 'draw' | undefined = undefined;
+
+      if (actualHome.id === 'team-bye') {
+        status = 'finished';
+        winner = 'away';
+      } else if (actualAway.id === 'team-bye') {
+        status = 'finished';
+        winner = 'home';
+      }
+
       matches.push({
         id: generateId(),
         sport,
         tournamentId,
-        round: Math.floor(matchNumber / 2) + 1,
+        round: round + 1,
         matchNumber: matchNumber++,
-        teamHome: homeTeam,
-        teamAway: awayTeam,
-        status: 'scheduled' as MatchStatus,
+        teamHome: actualHome,
+        teamAway: actualAway,
+        status,
+        winner,
         events: [],
         periods: buildInitialPeriods(sport),
         currentPeriod: 1,
@@ -231,10 +294,12 @@ function generateRoundRobinMatches(
       });
     }
   }
+
   return matches;
 }
 
-// Single elimination bracket
+// ─── Single elimination bracket generator ───────────────────────────
+
 function generateSingleEliminationMatches(
   tournamentId: string,
   sport: SportType,
@@ -242,53 +307,196 @@ function generateSingleEliminationMatches(
 ): Match[] {
   const matches: Match[] = [];
   const now = nowISO();
-  // Pad to next power of 2
   const size = Math.pow(2, Math.ceil(Math.log2(teams.length)));
+  
+  const byeTeam: Team = {
+    id: 'team-bye',
+    name: 'BYE',
+    shortName: 'BYE',
+    colorPrimary: '#4a5568',
+    colorSecondary: '#718096',
+    createdAt: now,
+  };
+
   const paddedTeams: (Team | null)[] = [
     ...teams,
     ...Array(size - teams.length).fill(null),
   ];
 
-  let matchNumber = 1;
-  let round = 1;
-  let currentRound = paddedTeams;
+  const makePlaceholderTeam = (matchNum: number): Team => ({
+    id: `placeholder-winner-m${matchNum}`,
+    name: `Pemenang M${matchNum}`,
+    shortName: `PM${matchNum}`,
+    colorPrimary: '#4a5568',
+    colorSecondary: '#718096',
+    createdAt: now,
+  });
 
-  while (currentRound.length > 1) {
-    for (let i = 0; i < currentRound.length; i += 2) {
-      const t1 = currentRound[i];
-      const t2 = currentRound[i + 1];
-      if (t1 && t2) {
-        matches.push({
-          id: generateId(),
-          sport,
-          tournamentId,
-          round,
-          matchNumber: matchNumber++,
-          teamHome: t1,
-          teamAway: t2,
-          status: 'scheduled' as MatchStatus,
-          events: [],
-          periods: buildInitialPeriods(sport),
-          currentPeriod: 1,
-          timerState: {
-            mode: sportsConfig[sport].timerMode,
-            totalSeconds: sportsConfig[sport].defaultTimerSeconds,
-            elapsedSeconds: 0,
-            isRunning: false,
-          },
-          totalScoreHome: 0,
-          totalScoreAway: 0,
-          createdAt: now,
-          updatedAt: now,
-        });
+  const matchMap = new Map<number, Match>();
+
+  let currentRound = 1;
+  let matchesInRound = size / 2;
+  let roundStartMatch = 1;
+
+  for (let matchNum = 1; matchNum < size; matchNum++) {
+    if (matchNum >= roundStartMatch + matchesInRound) {
+      roundStartMatch += matchesInRound;
+      matchesInRound /= 2;
+      currentRound++;
+    }
+
+    let teamHome: Team;
+    let teamAway: Team;
+    let status: MatchStatus = 'scheduled';
+    let winner: 'home' | 'away' | 'draw' | undefined = undefined;
+
+    if (currentRound === 1) {
+      const idxHome = (matchNum - 1) * 2;
+      const idxAway = (matchNum - 1) * 2 + 1;
+      
+      const tHome = paddedTeams[idxHome];
+      const tAway = paddedTeams[idxAway];
+
+      if (!tHome && !tAway) {
+        teamHome = byeTeam;
+        teamAway = byeTeam;
+        status = 'cancelled';
+      } else if (tHome && !tAway) {
+        teamHome = tHome;
+        teamAway = byeTeam;
+        status = 'finished';
+        winner = 'home';
+      } else if (!tHome && tAway) {
+        teamHome = byeTeam;
+        teamAway = tAway;
+        status = 'finished';
+        winner = 'away';
+      } else {
+        teamHome = tHome!;
+        teamAway = tAway!;
+      }
+    } else {
+      const prevRoundOffset = roundStartMatch - (matchesInRound * 2);
+      const relativeMatchIdx = matchNum - roundStartMatch;
+      const leftMatchNum = prevRoundOffset + relativeMatchIdx * 2;
+      const rightMatchNum = prevRoundOffset + relativeMatchIdx * 2 + 1;
+
+      const leftMatch = matchMap.get(leftMatchNum);
+      const rightMatch = matchMap.get(rightMatchNum);
+
+      let resolvedHome: Team | null = null;
+      let resolvedAway: Team | null = null;
+
+      if (leftMatch && leftMatch.status === 'finished') {
+        resolvedHome = leftMatch.winner === 'home' ? leftMatch.teamHome : leftMatch.teamAway;
+      }
+      if (rightMatch && rightMatch.status === 'finished') {
+        resolvedAway = rightMatch.winner === 'home' ? rightMatch.teamHome : rightMatch.teamAway;
+      }
+
+      teamHome = resolvedHome || makePlaceholderTeam(leftMatchNum);
+      teamAway = resolvedAway || makePlaceholderTeam(rightMatchNum);
+
+      if (resolvedHome?.id === 'team-bye' && resolvedAway?.id === 'team-bye') {
+        status = 'cancelled';
+      } else if (resolvedHome && resolvedAway?.id === 'team-bye') {
+        status = 'finished';
+        winner = 'home';
+      } else if (resolvedHome?.id === 'team-bye' && resolvedAway) {
+        status = 'finished';
+        winner = 'away';
       }
     }
-    // Next round akan diisi manual saat pertandingan selesai
-    currentRound = Array(currentRound.length / 2).fill(null);
-    round++;
+
+    const match: Match = {
+      id: generateId(),
+      sport,
+      tournamentId,
+      round: currentRound,
+      matchNumber: matchNum,
+      teamHome,
+      teamAway,
+      status,
+      winner,
+      events: [],
+      periods: buildInitialPeriods(sport),
+      currentPeriod: 1,
+      timerState: {
+        mode: sportsConfig[sport].timerMode,
+        totalSeconds: sportsConfig[sport].defaultTimerSeconds,
+        elapsedSeconds: 0,
+        isRunning: false,
+      },
+      totalScoreHome: 0,
+      totalScoreAway: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    matchMap.set(matchNum, match);
+    matches.push(match);
   }
 
   return matches;
+}
+
+// ─── Helpers to sync matches ────────────────────────────────────────
+
+function updateMatchHelper(state: any, matchId: string, updater: (m: Match) => void) {
+  const m = state.matches.find((x: any) => x.id === matchId);
+  if (m) {
+    updater(m);
+    if (m.tournamentId) {
+      const t = state.tournaments.find((x: any) => x.id === m.tournamentId);
+      if (t) {
+        const tm = t.matches.find((x: any) => x.id === matchId);
+        if (tm) {
+          updater(tm);
+        }
+      }
+    }
+  }
+}
+
+function propagateWinnerSingleElimination(state: any, tournament: Tournament, finishedMatch: Match) {
+  const winnerTeam = finishedMatch.winner === 'away' ? finishedMatch.teamAway : finishedMatch.teamHome;
+  if (!winnerTeam || winnerTeam.id === 'team-bye') return;
+
+  const placeholderId = `placeholder-winner-m${finishedMatch.matchNumber}`;
+  
+  const nextTMatch = tournament.matches.find(
+    (x) => x.teamHome.id === placeholderId || x.teamAway.id === placeholderId
+  );
+
+  if (nextTMatch) {
+    if (nextTMatch.teamHome.id === placeholderId) {
+      nextTMatch.teamHome = winnerTeam;
+    } else {
+      nextTMatch.teamAway = winnerTeam;
+    }
+
+    const nextGMatch = state.matches.find((x: any) => x.id === nextTMatch.id);
+    if (nextGMatch) {
+      nextGMatch.teamHome = nextTMatch.teamHome;
+      nextGMatch.teamAway = nextTMatch.teamAway;
+    }
+
+    if (nextTMatch.teamHome.id === 'team-bye' || nextTMatch.teamAway.id === 'team-bye') {
+      nextTMatch.status = 'finished';
+      nextTMatch.winner = nextTMatch.teamHome.id === 'team-bye' ? 'away' : 'home';
+      nextTMatch.finishedAt = nowISO();
+      nextTMatch.updatedAt = nowISO();
+
+      if (nextGMatch) {
+        nextGMatch.status = nextTMatch.status;
+        nextGMatch.winner = nextTMatch.winner;
+        nextGMatch.finishedAt = nextTMatch.finishedAt;
+        nextGMatch.updatedAt = nextTMatch.updatedAt;
+      }
+
+      propagateWinnerSingleElimination(state, tournament, nextTMatch);
+    }
+  }
 }
 
 // ─── Store definition ──────────────────────────────────────────────
@@ -362,161 +570,214 @@ export const useAppStore = create<AppStore>()(
       },
       startMatch: (id) =>
         set((state) => {
+          const now = nowISO();
+          updateMatchHelper(state, id, (m) => {
+            m.status = 'live';
+            m.startedAt = now;
+            m.timerState.isRunning = true;
+            m.timerState.lastStartedAt = now;
+            m.updatedAt = now;
+          });
           const m = state.matches.find((x) => x.id === id);
-          if (!m) return;
-          m.status = 'live';
-          m.startedAt = nowISO();
-          m.timerState.isRunning = true;
-          m.timerState.lastStartedAt = nowISO();
-          m.updatedAt = nowISO();
-          state.activeMatchId = id;
+          if (m) state.activeMatchId = id;
         }),
       pauseMatch: (id) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === id);
-          if (!m) return;
-          m.status = 'paused';
-          m.timerState.isRunning = false;
-          m.updatedAt = nowISO();
+          const now = nowISO();
+          updateMatchHelper(state, id, (m) => {
+            m.status = 'paused';
+            m.timerState.isRunning = false;
+            m.updatedAt = now;
+          });
         }),
       resumeMatch: (id) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === id);
-          if (!m) return;
-          m.status = 'live';
-          m.timerState.isRunning = true;
-          m.timerState.lastStartedAt = nowISO();
-          m.updatedAt = nowISO();
+          const now = nowISO();
+          updateMatchHelper(state, id, (m) => {
+            m.status = 'live';
+            m.timerState.isRunning = true;
+            m.timerState.lastStartedAt = now;
+            m.updatedAt = now;
+          });
         }),
       finishMatch: (id) =>
         set((state) => {
+          const now = nowISO();
+          updateMatchHelper(state, id, (m) => {
+            m.status = 'finished';
+            m.timerState.isRunning = false;
+            m.finishedAt = now;
+            m.updatedAt = now;
+            recalcTotals(m);
+            m.winner = determineWinner(m);
+          });
           const m = state.matches.find((x) => x.id === id);
-          if (!m) return;
-          m.status = 'finished';
-          m.timerState.isRunning = false;
-          m.finishedAt = nowISO();
-          m.updatedAt = nowISO();
-          recalcTotals(m);
-          m.winner = determineWinner(m);
-          if (state.activeMatchId === id) state.activeMatchId = null;
+          if (m && state.activeMatchId === id) state.activeMatchId = null;
+          if (m && m.tournamentId) {
+            const t = state.tournaments.find((x) => x.id === m.tournamentId);
+            if (t) {
+              if (t.format === 'single_elimination') {
+                propagateWinnerSingleElimination(state, t, m);
+              }
+
+              const standings = calculateStandings(t);
+              const allDone = t.matches.every(
+                (match) => match.status === 'finished' || match.status === 'cancelled',
+              );
+              if (allDone && standings.length > 0) {
+                t.champion = standings[0]!.team;
+                t.status = 'finished';
+                t.finishedAt = now;
+              }
+            }
+          }
         }),
       cancelMatch: (id) =>
         set((state) => {
+          const now = nowISO();
+          updateMatchHelper(state, id, (m) => {
+            m.status = 'cancelled';
+            m.timerState.isRunning = false;
+            m.updatedAt = now;
+          });
           const m = state.matches.find((x) => x.id === id);
-          if (!m) return;
-          m.status = 'cancelled';
-          m.timerState.isRunning = false;
-          m.updatedAt = nowISO();
-          if (state.activeMatchId === id) state.activeMatchId = null;
+          if (m && state.activeMatchId === id) state.activeMatchId = null;
         }),
 
       addScoreEvent: (matchId, eventData) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === matchId);
-          if (!m || m.status !== 'live') return;
+          const mGlobal = state.matches.find((x) => x.id === matchId);
+          if (!mGlobal || mGlobal.status !== 'live') return;
 
-          const event: ScoreEvent = {
-            ...eventData,
-            id: generateId(),
-            timestamp: nowISO(),
-          };
-          m.events.push(event);
+          const now = nowISO();
+          const eventId = generateId();
 
-          // Update current period score
-          const period = m.periods.find((p) => p.number === m.currentPeriod);
-          if (period) {
-            if (eventData.teamId === m.teamHome.id) {
-              // own_goal scores for opponent
-              if (eventData.type === 'own_goal') {
-                period.scoreAway += eventData.points;
+          updateMatchHelper(state, matchId, (m) => {
+            const event: ScoreEvent = {
+              ...eventData,
+              id: eventId,
+              timestamp: now,
+            };
+            m.events.push(event);
+
+            // Update current period score
+            const period = m.periods.find((p) => p.number === m.currentPeriod);
+            if (period) {
+              if (eventData.teamId === m.teamHome.id) {
+                if (eventData.type === 'own_goal') {
+                  period.scoreAway += eventData.points;
+                } else {
+                  period.scoreHome += eventData.points;
+                }
               } else {
-                period.scoreHome += eventData.points;
-              }
-            } else {
-              if (eventData.type === 'own_goal') {
-                period.scoreHome += eventData.points;
-              } else {
-                period.scoreAway += eventData.points;
+                if (eventData.type === 'own_goal') {
+                  period.scoreHome += eventData.points;
+                } else {
+                  period.scoreAway += eventData.points;
+                }
               }
             }
-          }
 
-          recalcTotals(m);
-          m.updatedAt = nowISO();
+            recalcTotals(m);
+            m.updatedAt = now;
+          });
         }),
 
       undoLastEvent: (matchId) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === matchId);
-          if (!m || m.events.length === 0) return;
+          const mGlobal = state.matches.find((x) => x.id === matchId);
+          if (!mGlobal || mGlobal.events.length === 0) return;
 
-          // Remove last non-correction event
-          const lastIdx = [...m.events].reverse().findIndex(
+          const lastIdx = [...mGlobal.events].reverse().findIndex(
             (e) => e.type !== 'correction',
           );
           if (lastIdx === -1) return;
-          const realIdx = m.events.length - 1 - lastIdx;
-          const removed = m.events[realIdx]!;
+          const realIdx = mGlobal.events.length - 1 - lastIdx;
+          const removed = mGlobal.events[realIdx]!;
 
-          // Revert score
-          const period = m.periods.find((p) => p.number === removed.period);
-          if (period) {
-            if (removed.teamId === m.teamHome.id) {
-              if (removed.type === 'own_goal') {
-                period.scoreAway = Math.max(0, period.scoreAway - removed.points);
+          const now = nowISO();
+
+          updateMatchHelper(state, matchId, (m) => {
+            const period = m.periods.find((p) => p.number === removed.period);
+            if (period) {
+              if (removed.teamId === m.teamHome.id) {
+                if (removed.type === 'own_goal') {
+                  period.scoreAway = Math.max(0, period.scoreAway - removed.points);
+                } else {
+                  period.scoreHome = Math.max(0, period.scoreHome - removed.points);
+                }
               } else {
-                period.scoreHome = Math.max(0, period.scoreHome - removed.points);
-              }
-            } else {
-              if (removed.type === 'own_goal') {
-                period.scoreHome = Math.max(0, period.scoreHome - removed.points);
-              } else {
-                period.scoreAway = Math.max(0, period.scoreAway - removed.points);
+                if (removed.type === 'own_goal') {
+                  period.scoreHome = Math.max(0, period.scoreHome - removed.points);
+                } else {
+                  period.scoreAway = Math.max(0, period.scoreAway - removed.points);
+                }
               }
             }
-          }
-
-          m.events.splice(realIdx, 1);
-          recalcTotals(m);
-          m.updatedAt = nowISO();
+            m.events.splice(realIdx, 1);
+            recalcTotals(m);
+            m.updatedAt = now;
+          });
         }),
 
       advancePeriod: (matchId) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === matchId);
-          if (!m) return;
-          const config = sportsConfig[m.sport];
+          const mGlobal = state.matches.find((x) => x.id === matchId);
+          if (!mGlobal) return;
+          const config = sportsConfig[mGlobal.sport];
+          const now = nowISO();
 
-          // Mark current period as ended
-          const currentPeriod = m.periods.find((p) => p.number === m.currentPeriod);
-          if (currentPeriod) currentPeriod.endedAt = nowISO();
+          updateMatchHelper(state, matchId, (m) => {
+            const currentPeriod = m.periods.find((p) => p.number === m.currentPeriod);
+            if (currentPeriod) currentPeriod.endedAt = now;
 
-          // For set-based sports, check if someone won enough sets
-          if (config.setsToWin) {
-            recalcTotals(m);
-            if (
-              m.totalScoreHome >= config.setsToWin ||
-              m.totalScoreAway >= config.setsToWin
-            ) {
-              m.status = 'finished';
-              m.finishedAt = nowISO();
-              m.timerState.isRunning = false;
-              m.winner = determineWinner(m);
-              if (state.activeMatchId === m.id) state.activeMatchId = null;
-              m.updatedAt = nowISO();
-              return;
+            if (config.setsToWin) {
+              recalcTotals(m);
+              if (
+                m.totalScoreHome >= config.setsToWin ||
+                m.totalScoreAway >= config.setsToWin
+              ) {
+                m.status = 'finished';
+                m.finishedAt = now;
+                m.timerState.isRunning = false;
+                m.winner = determineWinner(m);
+                return;
+              }
+            }
+
+            if (m.currentPeriod < config.periods) {
+              m.currentPeriod++;
+              const nextPeriod = m.periods.find((p) => p.number === m.currentPeriod);
+              if (nextPeriod) nextPeriod.startedAt = now;
+              m.timerState.elapsedSeconds = 0;
+              m.timerState.lastStartedAt = now;
+            }
+            m.updatedAt = now;
+          });
+
+          const updatedM = state.matches.find((x) => x.id === matchId);
+          if (updatedM && updatedM.status === 'finished') {
+            if (state.activeMatchId === matchId) state.activeMatchId = null;
+            
+            if (updatedM.tournamentId) {
+              const t = state.tournaments.find((x) => x.id === updatedM.tournamentId);
+              if (t) {
+                if (t.format === 'single_elimination') {
+                  propagateWinnerSingleElimination(state, t, updatedM);
+                }
+
+                const standings = calculateStandings(t);
+                const allDone = t.matches.every(
+                  (match) => match.status === 'finished' || match.status === 'cancelled',
+                );
+                if (allDone && standings.length > 0) {
+                  t.champion = standings[0]!.team;
+                  t.status = 'finished';
+                  t.finishedAt = now;
+                }
+              }
             }
           }
-
-          if (m.currentPeriod < config.periods) {
-            m.currentPeriod++;
-            const nextPeriod = m.periods.find((p) => p.number === m.currentPeriod);
-            if (nextPeriod) nextPeriod.startedAt = nowISO();
-            // Reset timer for next period
-            m.timerState.elapsedSeconds = 0;
-            m.timerState.lastStartedAt = nowISO();
-          }
-          m.updatedAt = nowISO();
         }),
 
       setActiveMatch: (id) =>
@@ -524,20 +785,20 @@ export const useAppStore = create<AppStore>()(
           state.activeMatchId = id;
         }),
 
-      // ── Timer tick (dipanggil dari useEffect interval) ──
       tickTimer: (matchId) =>
         set((state) => {
-          const m = state.matches.find((x) => x.id === matchId);
-          if (!m || !m.timerState.isRunning) return;
-          if (m.timerState.mode === 'stopwatch') {
-            m.timerState.elapsedSeconds++;
-          } else {
-            if (m.timerState.elapsedSeconds < m.timerState.totalSeconds) {
+          updateMatchHelper(state, matchId, (m) => {
+            if (!m.timerState.isRunning) return;
+            if (m.timerState.mode === 'stopwatch') {
               m.timerState.elapsedSeconds++;
             } else {
-              m.timerState.isRunning = false;
+              if (m.timerState.elapsedSeconds < m.timerState.totalSeconds) {
+                m.timerState.elapsedSeconds++;
+              } else {
+                m.timerState.isRunning = false;
+              }
             }
-          }
+          });
         }),
 
       // ── Tournaments ──
@@ -576,7 +837,6 @@ export const useAppStore = create<AppStore>()(
           t.status = 'ongoing';
           t.startedAt = nowISO();
 
-          // Also add to global matches array
           state.matches.push(...matches);
         }),
       setActiveTournament: (id) =>
@@ -584,8 +844,6 @@ export const useAppStore = create<AppStore>()(
           state.activeTournamentId = id;
         }),
       updateTournamentStandings: (tournamentId) => {
-        // Standings dihitung secara derived via calculateStandings()
-        // Store ini hanya update champion jika semua match selesai
         const state = get();
         const t = state.tournaments.find((x) => x.id === tournamentId);
         if (!t) return;
