@@ -161,7 +161,7 @@ export default function DashboardPage() {
         </h2>
         <div
           className="grid gap-5"
-          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}
         >
           {SPORTS.map((sport) => {
             const config = getSportConfig(sport);

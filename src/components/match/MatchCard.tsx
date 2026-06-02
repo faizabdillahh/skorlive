@@ -68,7 +68,73 @@ export default function MatchCard({ match }: Props) {
       </div>
 
       {/* Score row */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Mobile Stack Layout (hidden on sm and up) */}
+      <div className="flex flex-col gap-3 sm:hidden">
+        {/* Home team row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <TeamAvatar team={match.teamHome} size={36} />
+            <div
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 700,
+                fontSize: '1rem',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {match.teamHome.name}
+            </div>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)' }}>H</span>
+          </div>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: 'var(--score-home)',
+            }}
+          >
+            {match.totalScoreHome}
+          </span>
+        </div>
+
+        {/* Away team row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <TeamAvatar team={match.teamAway} size={36} />
+            <div
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 700,
+                fontSize: '1rem',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {match.teamAway.name}
+            </div>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)' }}>A</span>
+          </div>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: 'var(--score-away)',
+            }}
+          >
+            {match.totalScoreAway}
+          </span>
+        </div>
+      </div>
+
+      {/* Desktop Side-by-Side Layout (hidden on mobile) */}
+      <div className="hidden sm:flex items-center justify-between gap-4">
         {/* Home team */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <TeamAvatar team={match.teamHome} size={40} />

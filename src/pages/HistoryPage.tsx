@@ -79,8 +79,8 @@ export default function HistoryPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 0 }}>
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div style={{ position: 'relative' }} className="w-full sm:flex-1">
           <Search
             size={16}
             style={{
@@ -102,8 +102,7 @@ export default function HistoryPage() {
           />
         </div>
         <select
-          className="select"
-          style={{ flex: '0 1 180px', minWidth: 0 }}
+          className="select w-full sm:w-[180px]"
           value={sportFilter}
           onChange={(e) => setSportFilter(e.target.value as SportType | 'all')}
           id="history-sport-filter"
@@ -113,8 +112,7 @@ export default function HistoryPage() {
           ))}
         </select>
         <select
-          className="select"
-          style={{ flex: '0 1 160px', minWidth: 0 }}
+          className="select w-full sm:w-[160px]"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as MatchStatus | 'all')}
           id="history-status-filter"

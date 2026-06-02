@@ -52,7 +52,7 @@ export default function AppLayout() {
       style={{
         background: 'var(--bg-surface)',
         borderColor: 'var(--border)',
-        width: '260px',
+        width: '100%',
       }}
     >
       {/* Logo */}
@@ -61,7 +61,7 @@ export default function AppLayout() {
         style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}
       >
         <div
-          className="flex items-center justify-center rounded-lg"
+          className="flex items-center justify-center rounded-lg animate-pulse-subtle"
           style={{
             width: 40,
             height: 40,
@@ -70,7 +70,7 @@ export default function AppLayout() {
         >
           <Zap size={22} color="#fff" strokeWidth={2.5} />
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div
             className="font-bold leading-none"
             style={{
@@ -86,6 +86,15 @@ export default function AppLayout() {
             Sistem Skor Olahraga
           </div>
         </div>
+        {/* Close Button on Mobile Drawer */}
+        <button
+          className="md:hidden btn btn-ghost"
+          style={{ padding: '0.375rem', minHeight: 'auto', color: 'var(--text-muted)' }}
+          onClick={() => setMobileOpen(false)}
+          aria-label="Tutup menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       {/* Quick action */}
@@ -152,7 +161,7 @@ export default function AppLayout() {
   return (
     <div className="layout-app" style={{ minHeight: '100dvh' }}>
       {/* Desktop sidebar */}
-      <div className="hidden md:flex md:flex-col" style={{ gridRow: '1 / -1' }}>
+      <div className="hidden md:flex md:flex-col" style={{ gridRow: '1 / -1', width: 260 }}>
         {sidebar}
       </div>
 
@@ -197,25 +206,36 @@ export default function AppLayout() {
         </button>
       </header>
 
-      {/* Mobile drawer overlay */}
-      {mobileOpen && (
+      {/* Mobile drawer overlay (Animated & Glassmorphic) */}
+      <div
+        className={cn(
+          "md:hidden fixed inset-0 z-50 transition-opacity duration-300 ease-out",
+          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(3px)',
+          WebkitBackdropFilter: 'blur(3px)'
+        }}
+        onClick={() => setMobileOpen(false)}
+      >
         <div
-          className="md:hidden fixed inset-0 z-40"
-          style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setMobileOpen(false)}
+          className={cn(
+            "absolute top-0 left-0 h-full flex flex-col transition-transform duration-300 ease-out",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+          style={{
+            width: 280,
+            boxShadow: '10px 0 30px rgba(0,0,0,0.25)',
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="absolute top-0 left-0 h-full flex flex-col"
-            style={{ width: 260 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {sidebar}
-          </div>
+          {sidebar}
         </div>
-      )}
+      </div>
 
       {/* Main content */}
-      <main className="main-content" style={{ gridColumn: '2 / -1' }}>
+      <main className="main-content">
         <Outlet />
       </main>
     </div>

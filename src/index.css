@@ -675,6 +675,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .main-content {
+  grid-column: 2 / -1;
   overflow-y: auto;
   max-height: 100dvh;
   padding: 2.5rem 3rem;
@@ -684,9 +685,11 @@ h1, h2, h3, h4, h5, h6 {
     padding: 2rem 2.5rem;
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .main-content {
-    padding: 1.5rem 1.25rem;
+    grid-column: 1 / -1;
+    max-height: none;
+    padding: 1.5rem 1rem;
   }
 }
 
@@ -717,4 +720,19 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+/* ─── Custom Animations ──────────────────────────────────────────── */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(0.98);
+  }
+}
+.animate-pulse-subtle {
+  animation: pulse-subtle 3.5s infinite ease-in-out;
 }

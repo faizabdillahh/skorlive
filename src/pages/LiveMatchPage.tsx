@@ -248,7 +248,8 @@ export default function LiveMatchPage() {
                   letterSpacing: '0.03em',
                 }}
               >
-                {match.teamHome.name}
+                <span className="hidden sm:inline">{match.teamHome.name}</span>
+                <span className="sm:hidden">{match.teamHome.shortName}</span>
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>HOME</div>
             </div>
@@ -309,7 +310,8 @@ export default function LiveMatchPage() {
                   letterSpacing: '0.03em',
                 }}
               >
-                {match.teamAway.name}
+                <span className="hidden sm:inline">{match.teamAway.name}</span>
+                <span className="sm:hidden">{match.teamAway.shortName}</span>
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>AWAY</div>
             </div>

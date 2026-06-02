@@ -264,11 +264,12 @@ export default function TournamentDetailPage() {
                   R{match.round ?? 1}
                 </span>
 
-                {/* Teams + score */}
+                 {/* Teams + score */}
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                   <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'right' }}>
-                      {match.teamHome.name}
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span className="hidden sm:inline">{match.teamHome.name}</span>
+                      <span className="sm:hidden">{match.teamHome.shortName}</span>
                     </span>
                     <TeamAvatar team={match.teamHome} size={28} />
                   </div>
@@ -287,8 +288,9 @@ export default function TournamentDetailPage() {
 
                   <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 0 }}>
                     <TeamAvatar team={match.teamAway} size={28} />
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>
-                      {match.teamAway.name}
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span className="hidden sm:inline">{match.teamAway.name}</span>
+                      <span className="sm:hidden">{match.teamAway.shortName}</span>
                     </span>
                   </div>
                 </div>

@@ -90,7 +90,8 @@ export default function MatchDetailPage() {
             <TeamAvatar team={match.teamHome} size={64} />
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700 }}>
-                {match.teamHome.name}
+                <span className="hidden sm:inline">{match.teamHome.name}</span>
+                <span className="sm:hidden">{match.teamHome.shortName}</span>
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>HOME</div>
             </div>
@@ -116,7 +117,8 @@ export default function MatchDetailPage() {
             <TeamAvatar team={match.teamAway} size={64} />
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.1rem', fontWeight: 700 }}>
-                {match.teamAway.name}
+                <span className="hidden sm:inline">{match.teamAway.name}</span>
+                <span className="sm:hidden">{match.teamAway.shortName}</span>
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>AWAY</div>
             </div>
